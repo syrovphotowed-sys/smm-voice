@@ -1,0 +1,51 @@
+name: tts
+on:
+  workflow_dispatch:
+    inputs:
+      voice_id:
+        description: "ElevenLabs voice id"
+        required: true
+        default: "DjoQyCtQGsGqcMnpvYYf"
+      script:
+        description: "scripts/club.json or scripts/partners.json"
+        required: true
+        default: "scripts/club.json"
+jobs:
+  tts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate speech
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          VOICE_ID: ${{ inputs.voice_id }}
+          SCRIPT: ${{ inputs.script }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, urllib.request, urllib.error
+          segs=json.load(open(os.environ['SCRIPT'],encoding='utf-8'))
+          voice=os.environ['VOICE_ID']
+          key=os.environ['ELEVENLABS_API_KEY']
+          out=pathlib.Path('out'); out.mkdir(exist_ok=True)
+          for s in segs:
+              body=json.dumps({
+                'text': s['text'],
+                'model_id': s.get('model_id','eleven_multilingual_v2'),
+                'voice_settings': {'stability':0.42,'similarity_boost':0.82,'style':0.28,'use_speaker_boost':True},
+              }, ensure_ascii=False).encode()
+              req=urllib.request.Request(
+                f'https://api.elevenlabs.io/v1/text-to-speech/{voice}?output_format=mp3_44100_128',
+                data=body, method='POST',
+                headers={'xi-api-key':key,'Content-Type':'application/json','Accept':'audio/mpeg'})
+              try:
+                  with urllib.request.urlopen(req, timeout=120) as r:
+                      data=r.read()
+              except urllib.error.HTTPError as e:
+                  print('HTTP',e.code,e.read().decode('utf-8','replace')[:500]); raise
+              (out/s['file']).write_bytes(data)
+              print(s['file'], len(data))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tts
+          path: out
