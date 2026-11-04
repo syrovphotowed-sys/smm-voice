@@ -1,0 +1,25 @@
+name: voices
+on:
+  workflow_dispatch:
+jobs:
+  voices:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch voices
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: |
+          set -e
+          curl -sS --fail --max-time 60 \
+            -H "xi-api-key: $ELEVENLABS_API_KEY" \
+            https://api.elevenlabs.io/v1/voices -o voices.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('voices.json'))
+          for v in d.get('voices',[]):
+              print(v.get('voice_id'), '|', v.get('name'), '|', v.get('category'), '|', v.get('labels'))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voices
+          path: voices.json
