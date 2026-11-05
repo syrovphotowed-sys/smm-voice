@@ -1,11 +1,12 @@
 name: tts
+# Only Russian voices from the archive; default: Elena Gromova (ru).
 on:
   workflow_dispatch:
     inputs:
       voice_id:
         description: "ElevenLabs voice id"
         required: true
-        default: "DjoQyCtQGsGqcMnpvYYf"
+        default: "0ArNnoIAWKlT4WweaVMY"
       script:
         description: "scripts/club.json or scripts/partners.json"
         required: true
@@ -53,4 +54,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: tts
+# Only Russian voices from the archive; default: Elena Gromova (ru).
           path: out
