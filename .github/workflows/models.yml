@@ -1,0 +1,23 @@
+name: models
+on:
+  workflow_dispatch:
+jobs:
+  models:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch models
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: |
+          set -e
+          curl -sS --fail --max-time 60 -H "xi-api-key: $ELEVENLABS_API_KEY" https://api.elevenlabs.io/v1/models -o models.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('models.json'))
+          for m in d:
+              print(m.get('model_id'), '|', m.get('name'), '|', m.get('languages'))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: models
+          path: models.json
