@@ -1,0 +1,63 @@
+name: tts-tune
+on:
+  workflow_dispatch:
+    inputs:
+      voice_id:
+        required: true
+        default: "VgSTUx04Q3gkUCqbJK5W"
+      stability:
+        required: true
+        default: "0.30"
+      similarity:
+        required: true
+        default: "0.95"
+      style:
+        required: true
+        default: "0.35"
+      model:
+        required: true
+        default: "eleven_v4"
+jobs:
+  tts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate tuned speech
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          VOICE_ID: ${{ inputs.voice_id }}
+          STABILITY: ${{ inputs.stability }}
+          SIMILARITY: ${{ inputs.similarity }}
+          STYLE: ${{ inputs.style }}
+          MODEL_ID: ${{ inputs.model }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, urllib.request, urllib.error
+          segs=json.load(open('scripts/anna-compare.json',encoding='utf-8'))
+          voice=os.environ['VOICE_ID']; key=os.environ['ELEVENLABS_API_KEY']
+          out=pathlib.Path('out'); out.mkdir(exist_ok=True)
+          for s in segs:
+              body=json.dumps({
+                'text': s['text'],
+                'model_id': s.get('model_id', os.environ.get('MODEL_ID','eleven_v4')),
+                'voice_settings': {
+                  'stability':float(os.environ['STABILITY']),
+                  'similarity_boost':float(os.environ['SIMILARITY']),
+                  'style':float(os.environ['STYLE']),
+                  'use_speaker_boost':True,
+                },
+              }, ensure_ascii=False).encode()
+              req=urllib.request.Request(
+                f'https://api.elevenlabs.io/v1/text-to-speech/{voice}?output_format=mp3_44100_128',
+                data=body, method='POST',
+                headers={'xi-api-key':key,'Content-Type':'application/json','Accept':'audio/mpeg'})
+              try:
+                  with urllib.request.urlopen(req, timeout=120) as r: data=r.read()
+              except urllib.error.HTTPError as e:
+                  print('HTTP',e.code,e.read().decode('utf-8','replace')[:500]); raise
+              (out/s['file']).write_bytes(data); print(s['file'],len(data))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tts-tune
+          path: out
