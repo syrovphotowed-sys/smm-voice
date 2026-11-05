@@ -1,0 +1,44 @@
+name: clone2
+on:
+  workflow_dispatch:
+    inputs:
+      file:
+        required: true
+        default: "anna-clean.mp3"
+      name:
+        required: true
+        default: "Anna Nemchenko Clean"
+      remove_noise:
+        required: true
+        default: "false"
+jobs:
+  clone2:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch private sample and add voice
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          FILE: ${{ inputs.file }}
+          VOICE_NAME: ${{ inputs.name }}
+          REMOVE_NOISE: ${{ inputs.remove_noise }}
+        run: |
+          set -e
+          curl -sS --fail --max-time 120 \
+            -H "Authorization: token $GITEA_TOKEN" \
+            "https://git.pro-agent-ai.ru/api/v1/repos/svidimsya/voice-samples/raw/$FILE" \
+            -o sample.audio
+          file sample.audio; ls -lh sample.audio
+          curl -sS --fail --max-time 180 -X POST \
+            -H "xi-api-key: $ELEVENLABS_API_KEY" \
+            -F "name=$VOICE_NAME" \
+            -F "description=Improved authorized voice clone for Svidimsya; Anna Nemchenko consent confirmed by owner" \
+            -F 'labels={"language":"ru","gender":"female","use_case":"social_media"}' \
+            -F "remove_background_noise=$REMOVE_NOISE" \
+            -F "files=@sample.audio" \
+            https://api.elevenlabs.io/v1/voices/add -o voice.json
+          cat voice.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clone2
+          path: voice.json
