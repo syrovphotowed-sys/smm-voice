@@ -1,0 +1,43 @@
+name: clone
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: "Voice name"
+        required: true
+        default: "Anna Nemchenko"
+jobs:
+  clone:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch private sample and add voice
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          VOICE_NAME: ${{ inputs.name }}
+        run: |
+          set -e
+          curl -sS --fail --max-time 60 \
+            -H "Authorization: token $GITEA_TOKEN" \
+            "https://git.pro-agent-ai.ru/api/v1/repos/svidimsya/voice-samples/raw/anna-nemchenko.mp3" \
+            -o sample.mp3
+          file sample.mp3
+          ls -lh sample.mp3
+          curl -sS --fail --max-time 180 -X POST \
+            -H "xi-api-key: $ELEVENLABS_API_KEY" \
+            -F "name=$VOICE_NAME" \
+            -F "description=Authorized voice clone for Svidimsya; Anna Nemchenko consent confirmed by owner" \
+            -F 'labels={"language":"ru","gender":"female","use_case":"social_media"}' \
+            -F "remove_background_noise=true" \
+            -F "files=@sample.mp3" \
+            https://api.elevenlabs.io/v1/voices/add -o voice.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('voice.json'))
+          print('voice_id =', d.get('voice_id'))
+          print(json.dumps(d, ensure_ascii=False)[:1000])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clone
+          path: voice.json
