@@ -1,0 +1,33 @@
+name: isolate
+on:
+  workflow_dispatch:
+    inputs:
+      file:
+        description: "Private sample filename"
+        required: true
+        default: "anna-source.ogg"
+jobs:
+  isolate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Isolate voice
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          FILE: ${{ inputs.file }}
+        run: |
+          set -e
+          curl -sS --fail --max-time 120 \
+            -H "Authorization: token $GITEA_TOKEN" \
+            "https://git.pro-agent-ai.ru/api/v1/repos/svidimsya/voice-samples/raw/$FILE" \
+            -o input.audio
+          file input.audio; ls -lh input.audio
+          curl -sS --fail --max-time 300 -X POST \
+            -H "xi-api-key: $ELEVENLABS_API_KEY" \
+            -F "audio=@input.audio" \
+            https://api.elevenlabs.io/v1/audio-isolation -o clean.mp3
+          file clean.mp3; ls -lh clean.mp3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: isolated
+          path: clean.mp3
