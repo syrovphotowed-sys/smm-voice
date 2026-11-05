@@ -10,6 +10,10 @@ on:
         description: "scripts/club.json or scripts/partners.json"
         required: true
         default: "scripts/club.json"
+      model:
+        description: "Eleven v4 model id"
+        required: true
+        default: "eleven_v4"
 jobs:
   tts:
     runs-on: ubuntu-latest
@@ -20,6 +24,7 @@ jobs:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           VOICE_ID: ${{ inputs.voice_id }}
           SCRIPT: ${{ inputs.script }}
+          MODEL_ID: ${{ inputs.model }}
         run: |
           python3 - <<'PY'
           import json, os, pathlib, urllib.request, urllib.error
@@ -30,7 +35,7 @@ jobs:
           for s in segs:
               body=json.dumps({
                 'text': s['text'],
-                'model_id': s.get('model_id','eleven_multilingual_v2'),
+                'model_id': s.get('model_id', os.environ.get('MODEL_ID','eleven_v4')),
                 'voice_settings': {'stability':0.42,'similarity_boost':0.82,'style':0.28,'use_speaker_boost':True},
               }, ensure_ascii=False).encode()
               req=urllib.request.Request(
