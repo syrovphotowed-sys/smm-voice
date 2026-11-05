@@ -1,0 +1,24 @@
+name: account
+on:
+  workflow_dispatch:
+jobs:
+  account:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch account
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: |
+          set -e
+          curl -sS --max-time 60 -H "xi-api-key: $ELEVENLABS_API_KEY" https://api.elevenlabs.io/v1/user/subscription -o sub.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('sub.json'))
+          for k in ['tier','status','character_count','character_limit','next_character_count_reset_unix','currency','billing_period']:
+              if k in d: print(k, '=', d[k])
+          print('keys', sorted(d.keys()))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: account
+          path: sub.json
