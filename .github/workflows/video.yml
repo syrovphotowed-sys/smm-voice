@@ -1,0 +1,78 @@
+name: video
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        required: true
+        default: "Reportage vertical selfie video of a woman walking through a warm restaurant, people talking at tables behind her, natural handheld camera"
+      audio:
+        required: true
+        default: "kurgan-02.mp3"
+      seconds:
+        required: true
+        default: "5"
+jobs:
+  video:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate ElevenLabs video
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          PROMPT: ${{ inputs.prompt }}
+          AUDIO: ${{ inputs.audio }}
+          SECONDS: ${{ inputs.seconds }}
+        run: |
+          set -e
+          base='https://git.pro-agent-ai.ru/api/v1/repos/svidimsya/voice-samples/raw'
+          curl -sS --fail --max-time 120 -H "Authorization: token $GITEA_TOKEN" "$base/anna-reference.png" -o anna.png
+          curl -sS --fail --max-time 120 -H "Authorization: token $GITEA_TOKEN" "$base/kurgan/$AUDIO" -o speech.mp3
+          python3 - <<'PY'
+          import base64,json,os,time,urllib.request,urllib.error,pathlib
+          key=os.environ['ELEVENLABS_API_KEY']
+          prompt=os.environ['PROMPT']; secs=int(os.environ['SECONDS'])
+          img=base64.b64encode(pathlib.Path('anna.png').read_bytes()).decode()
+          aud=base64.b64encode(pathlib.Path('speech.mp3').read_bytes()).decode()
+          payload={
+            'model_id':'bytedance-seedance-v2.5',
+            'prompt':prompt,
+            'aspect_ratio':'9:16',
+            'duration_secs':secs,
+            'resolution':'720p',
+            'generate_audio':False,
+            'images':[{'type':'inline_base64','content_base64':img,'mime_type':'image/png'}],
+            'audios':[{'type':'inline_base64','content_base64':aud,'mime_type':'audio/mpeg'}],
+          }
+          req=urllib.request.Request('https://api.elevenlabs.io/v1/flows/video',
+            data=json.dumps(payload).encode(), method='POST',
+            headers={'xi-api-key':key,'Content-Type':'application/json'})
+          try:
+              with urllib.request.urlopen(req, timeout=120) as r:
+                  out=json.loads(r.read())
+          except urllib.error.HTTPError as e:
+              print('HTTP',e.code,e.read().decode('utf-8','replace')[:2000]); raise
+          print('created',out)
+          gid=out['id']
+          for i in range(90):
+              time.sleep(5)
+              req=urllib.request.Request(f'https://api.elevenlabs.io/v1/flows/video/{gid}', headers={'xi-api-key':key})
+              with urllib.request.urlopen(req, timeout=60) as r: status=json.loads(r.read())
+              print('poll',i+1,status.get('status'))
+              if status.get('status')=='completed':
+                  url=status['content_url']
+                  pathlib.Path('video-url.txt').write_text(url)
+                  urllib.request.urlretrieve(url,'out.mp4')
+                  print('downloaded',pathlib.Path('out.mp4').stat().st_size)
+                  break
+              if status.get('status')=='failed':
+                  raise RuntimeError(status)
+          else:
+              raise RuntimeError('timeout')
+          PY
+          ls -lh out.mp4 video-url.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: video
+          path: |
+            out.mp4
+            video-url.txt
